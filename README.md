@@ -1,5 +1,7 @@
 **Upliance-AI-Assignment**
+
 This assignment analyzes user behavior, cooking preferences, and order trends to uncover actionable insights for enhancing user engagement and optimizing platform offerings.
+
 **Objectives**
 The primary objective of this project is to analyze datasets related to user behavior, cooking
 preferences, and order trends. The analysis aims to:
