@@ -1,0 +1,273 @@
+## Loading Libraries
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+## Loading Datasets and Fetching data
+
+user_details = pd.read_excel(r"C:\Users\chara\Downloads\UserDetails.xlsx")
+Cooking_session=pd.read_excel(r"C:\Users\chara\Downloads\Cookingsession.xlsx")
+Order_details=pd.read_excel(r"C:\Users\chara\Downloads\order details.xlsx")
+
+# Checking Information
+
+user_details.info
+
+Cooking_session.info
+
+Order_details.info
+
+user_details.describe()
+
+Cooking_session.describe()
+
+Order_details.describe()
+
+## Feteching Top 5 
+
+user_details.head()
+
+Cooking_session.head()
+
+Order_details.head()
+
+## Cleaning Data set
+
+## removing duplicated
+
+user_details.drop_duplicates(inplace=True)
+Cooking_session.drop_duplicates(inplace=True)
+Order_details.drop_duplicates(inplace=True)
+
+## Handling Missing value
+
+user_details.fillna('Unknown', inplace=True)
+Cooking_session.fillna({'Duration (mins)': Cooking_session['Duration (mins)'].median(),'Session Rating': Cooking_session['Session Rating'].mean() }, inplace=True)
+Order_details.fillna({'Amount (USD)': Order_details['Amount (USD)'].median(),'Rating': 'Unknown'}, inplace=True)
+
+## Checking date formates
+
+Order_details['Order Date'] = pd.to_datetime(Order_details['Order Date'])
+Cooking_session['Session Start'] = pd.to_datetime(Cooking_session['Session Start'])
+
+## Checking column names in each dataset
+
+user_details.columns
+
+Cooking_session.columns
+
+Order_details.columns
+
+# Standardize column names to lowercase for consistency
+user_details.columns = user_details.columns.str.strip().str.lower()
+Cooking_session.columns = Cooking_session.columns.str.strip().str.lower()
+Order_details.columns = Order_details.columns.str.strip().str.lower()
+
+# Merge the datasets
+# Merge CookingSessions and OrderDetails based on common keys
+merged_data = pd.merge(Cooking_session, Order_details, on = 'session id', how = 'inner')
+
+# Merge with UserDetails to get complete information
+final_data = pd.merge(merged_data, user_details, left_on='user id_x', right_on='user id', how='inner')
+
+final_data.head()
+
+# Drop redundant columns after merge
+final_data.drop(['user id_x', 'user id'], axis=1, inplace=True)
+
+# Clean and transform data (Example: Handling missing values)
+final_data.fillna({'rating': 0, 'session rating': 0}, inplace=True)
+
+final_data.head()
+
+popular_dishes = final_data["dish name_x"].value_counts().head(10)
+print("Top 10 Popular Dishes:")
+print(popular_dishes)
+
+# Visualization: Top 10 Popular Dishes
+plt.figure(figsize=(10, 6))
+popular_dishes.plot(kind='bar', color='orange')
+plt.title('Top 10 Popular Dishes')
+plt.xlabel('Dish Name')
+plt.ylabel('Frequency')
+plt.xticks(rotation=45)
+plt.show()
+
+# Convert columns to numeric, forcing errors to NaN
+final_data["session rating"] = pd.to_numeric(final_data["session rating"], errors="coerce")
+final_data["rating"] = pd.to_numeric(final_data["rating"], errors="coerce")
+final_data["amount (usd)"] = pd.to_numeric(final_data["amount (usd)"], errors="coerce")
+
+
+# Analyze relationship between cooking sessions and user orders
+session_order_correlation = final_data.groupby("user name").agg({
+    "session rating": "mean",
+    "rating": "mean",
+    "amount (usd)": "sum"
+}).reset_index()
+session_order_correlation
+
+plt.figure(figsize=(8, 6))
+plt.scatter(final_data['session rating'], final_data['rating'], alpha=0.7, c='blue')
+plt.title('Session Rating vs. Order Rating')
+plt.xlabel('Session Rating')
+plt.ylabel('Order Rating')
+plt.grid()
+plt.show()
+
+# Filter completed orders
+completed_orders = final_data[final_data['order status'] == 'Completed']
+
+# Calculating average session rating and order rating for completed orders
+average_session_rating_completed = completed_orders['session rating'].mean()
+average_order_rating_completed = completed_orders['rating'].mean()
+
+# Calculating average session duration for completed orders
+average_duration_completed = completed_orders['duration (mins)'].mean()
+
+# Group by Order Status to compare session ratings, order ratings, and durations
+session_rating_by_order_status = final_data.groupby('order status')['session rating'].mean()
+order_rating_by_order_status = final_data.groupby('order status')['rating'].mean()
+duration_by_order_status = final_data.groupby('order status')['duration (mins)'].mean()
+
+# Printing results
+print("Average Session Rating for Completed Orders:", average_session_rating_completed)
+print("Average Order Rating for Completed Orders:", average_order_rating_completed)
+print("Average Session Duration for Completed Orders (mins):", average_duration_completed)
+print("\nAverage Session Rating by Order Status:\n", session_rating_by_order_status)
+print("\nAverage Order Rating by Order Status:\n", order_rating_by_order_status)
+print("\nAverage Session Duration by Order Status (mins):\n", duration_by_order_status)
+
+
+final_data.columns
+
+# Filtering the DataFrame for relevant columns
+dish_data = final_data[['dish name_x', 'rating', 'session rating', 'duration (mins)']]
+
+# Calculating average ratings and session duration for each dish
+dish_analysis = dish_data.groupby('dish name_x').agg({
+    'rating': 'mean',
+    'session rating': 'mean',
+    'duration (mins)': 'mean',
+    }).reset_index()
+
+dish_analysis.columns = ['dish name_x', 'Avg Order Rating', 'Avg Session Rating', 'Avg Duration (mins)']
+
+# Sorting dishes by average order rating, session rating, and completion rate
+popular_dishes_df = dish_analysis.sort_values(by=['Avg Order Rating', 'Avg Session Rating'], ascending=False)
+
+# Printing the resulting DataFrame
+print("Popular Dishes DataFrame:\n", popular_dishes_df)
+popular_dishes_df.to_excel('output.xlsx', index=False)
+
+# Plotting
+plt.figure(figsize=(12, 6))
+sns.set(style="whitegrid")
+
+# Bar plot for average order rating and session rating
+ax = sns.barplot(x='dish name_x', y='Avg Order Rating', data=dish_analysis, color='pink', label='Avg Order Rating')
+sns.barplot(x='dish name_x', y='Avg Session Rating', data=dish_analysis, color='yellow', label='Avg Session Rating')
+
+# Create another Y-axis for duration
+ax2 = ax.twinx()
+sns.lineplot(x='dish name_x', y='Avg Duration (mins)', data=dish_analysis, color='blue', marker='o', label='Avg Duration (mins)', ax=ax2)
+
+# Adding labels and title
+ax.set_ylabel('Average Ratings')
+ax2.set_ylabel('Average Duration (mins)')
+ax.set_xlabel('Dish Name')
+ax.set_title('Dish Popularity Analysis', fontsize=16)
+
+# Adjusting legend
+bar_legend = ax.get_legend_handles_labels()
+line_legend = ax2.get_legend_handles_labels()
+plt.legend(bar_legend[0] + line_legend[0], bar_legend[1] + line_legend[1], loc='upper left')
+
+# Adjust X-axis for better readability
+plt.xticks(rotation=45)
+
+# Display the plot
+plt.tight_layout()
+plt.show()
+
+
+# Calculating total orders and average session rating by age
+age_analysis = final_data.groupby('age').agg({
+    'total orders': 'sum',
+    'session rating': 'mean',
+    'amount (usd)': 'mean'
+}).reset_index()
+
+# Calculating total orders and average session rating by location
+location_analysis = final_data.groupby('location').agg({
+    'total orders': 'sum',
+    'session rating': 'mean',
+    'amount (usd)': 'mean'
+}).reset_index()
+
+# Plotting total orders by age 
+plt.figure(figsize=(6, 4))  
+sns.set(style="whitegrid")
+sns.barplot(x='age', y='total orders', data=age_analysis, palette='coolwarm')  # Changed to 'coolwarm'
+plt.title('Total Orders by Age', fontsize=14)
+plt.xlabel('Age', fontsize=12)
+plt.ylabel('Total Orders', fontsize=12)
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+
+## average session rating by age
+plt.figure(figsize=(6, 4))
+sns.barplot(x='age', y='session rating', data=age_analysis, palette='coolwarm')
+plt.title('Average Session Rating by Age')
+plt.xticks(rotation=45)
+plt.show()
+
+## Total orders by location
+plt.figure(figsize=(6, 4))
+sns.barplot(x='location', y='total orders', data=location_analysis, palette='coolwarm')
+plt.title('Total Orders by Location')
+plt.xticks(rotation=45)
+plt.show()
+
+
+## Average Session Rating By Location
+plt.figure(figsize=(6, 4))
+sns.barplot(x='location', y='session rating', data=location_analysis, palette='coolwarm')
+plt.title('Average Session Rating by Location')
+plt.xticks(rotation=45)
+plt.show()
+
+## Average Amopunt Spend By loacation
+plt.figure(figsize=(6, 4))
+sns.barplot(x='location', y='amount (usd)', data=location_analysis, palette='hot')
+plt.title('Average Amount Spent by Location')
+plt.xticks(rotation=45)
+plt.show()
+
+# Heatmap showing correlation between different numerical columns
+correlation_matrix = final_data[['duration (mins)', 'amount (usd)']].corr()
+plt.figure(figsize=(7, 5))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f')
+plt.title('Correlation Heatmap')
+plt.show()
+
+# Scatter plot to see the relationship between cooking session duration and order amount
+plt.figure(figsize=(8, 6))
+sns.scatterplot(x='duration (mins)', y='amount (usd)', data=final_data, alpha=0.6, color='green')
+plt.title('Session Duration vs. Order Amount')
+plt.xlabel('Session Duration (minutes)')
+plt.ylabel('Order Amount (USD)')
+plt.show()
+
+## Analysis by age
+print("Analysis by Age:")
+print(age_analysis)
+## Analysis by location
+print("\nAnalysis by Location:")
+print(location_analysis)
+age_analysis.to_excel("output.xlsx")
+
